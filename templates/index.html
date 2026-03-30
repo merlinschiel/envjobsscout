@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoEco JobScout — Environmental Job Search</title>
+    <meta name="description" content="Scout and track environmental, geoecology, and sustainability jobs across Germany from multiple job boards.">
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+
+    <!-- Leaflet MarkerCluster -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.Default.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/leaflet.markercluster.js"></script>
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="app">
+    <!-- ═══ HEADER ═══ -->
+    <header class="header">
+        <div class="header-brand">
+            <span class="logo">🌍 GeoEco JobScout</span>
+            <span class="subtitle">Multi-Source Job Scanner</span>
+        </div>
+
+        <nav class="header-nav">
+            <button class="nav-btn active" data-view="map" id="nav-map">
+                🗺️ Map
+            </button>
+            <button class="nav-btn" data-view="table" id="nav-table">
+                📋 Table
+            </button>
+            <button class="nav-btn" data-view="portfolio" id="nav-portfolio">
+                ⭐ Portfolio
+            </button>
+        </nav>
+
+        <div class="header-actions">
+            <span class="stats-badge" id="stats-badge">0 jobs</span>
+            <button class="btn btn-primary" id="btn-scrape" title="Start new scrape">
+                🔄 Scrape Jobs
+            </button>
+            <button class="btn-icon" id="btn-toggle-sidebar" title="Toggle sidebar">☰</button>
+        </div>
+    </header>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <div class="main-content">
+        <!-- ═══ SIDEBAR ═══ -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Search -->
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <input type="text" class="search-input" id="search-input" placeholder="Search jobs...">
+                </div>
+            </div>
+
+            <!-- Source Filters -->
+            <div class="sidebar-section">
+                <h3>Sources</h3>
+                <div class="filter-group" id="source-filters"></div>
+            </div>
+
+            <!-- Skill Filters -->
+            <div class="sidebar-section">
+                <h3>Skills</h3>
+                <div class="filter-group" id="skill-filters"></div>
+            </div>
+
+            <!-- Term Filters -->
+            <div class="sidebar-section">
+                <h3>Search Terms</h3>
+                <div class="filter-group" id="term-filters"></div>
+            </div>
+
+            <!-- Location Filters -->
+            <div class="sidebar-section">
+                <h3>Top Locations</h3>
+                <div class="filter-group" id="location-filters"></div>
+            </div>
+        </aside>
+
+        <!-- ═══ CONTENT PANEL ═══ -->
+        <div class="content-panel">
+            <!-- Scrape Progress (shown when scraping) -->
+            <div id="scrape-progress" style="display: none;">
+                <div class="scrape-panel">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><span class="spinner"></span> Scraping jobs...</span>
+                        <span id="scrape-percent" style="font-weight: 600; color: var(--accent);">0%</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="scrape-bar"></div>
+                    </div>
+                    <div class="scrape-log" id="scrape-log"></div>
+                </div>
+            </div>
+
+            <!-- MAP VIEW -->
+            <div class="view-container active" id="view-map">
+                <div id="map-container">
+                    <div id="map"></div>
+                </div>
+            </div>
+
+            <!-- TABLE VIEW -->
+            <div class="view-container" id="view-table">
+                <div class="table-toolbar">
+                    <span class="result-count" id="table-count">0 results</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="hide-remote" style="accent-color: var(--accent);"> Hide remote
+                        </label>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table class="jobs-table" id="jobs-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="Title">Title <span class="sort-arrow">↕</span></th>
+                                <th data-sort="Company">Company <span class="sort-arrow">↕</span></th>
+                                <th data-sort="Location">Location <span class="sort-arrow">↕</span></th>
+                                <th data-sort="Source">Source <span class="sort-arrow">↕</span></th>
+                                <th data-sort="Skills">Skills <span class="sort-arrow">↕</span></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PORTFOLIO VIEW -->
+            <div class="view-container" id="view-portfolio">
+                <div class="portfolio-view">
+                    <div class="portfolio-header">
+                        <h2>⭐ Your Portfolio</h2>
+                        <button class="btn btn-primary" id="btn-add-manual">+ Add Entry</button>
+                    </div>
+                    <div class="portfolio-grid" id="portfolio-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ ADD MANUAL MODAL ═══ -->
+<div class="modal-overlay" id="modal-manual">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-manual')">✕</button>
+        <h2>Add to Portfolio</h2>
+        <div class="form-group">
+            <label>Company</label>
+            <input type="text" class="form-input" id="manual-company" placeholder="Company name">
+        </div>
+        <div class="form-group">
+            <label>Job Title / Field</label>
+            <input type="text" class="form-input" id="manual-title" placeholder="Job title or field of interest">
+        </div>
+        <div class="form-group">
+            <label>Location</label>
+            <input type="text" class="form-input" id="manual-location" placeholder="City">
+        </div>
+        <div class="form-group">
+            <label>Link</label>
+            <input type="text" class="form-input" id="manual-link" placeholder="https://...">
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea class="form-textarea" id="manual-notes" placeholder="Any notes..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Status</label>
+            <select class="form-select" id="manual-status">
+                <option value="Watchlist">Watchlist</option>
+                <option value="To Review">To Review</option>
+                <option value="Applied">Applied</option>
+                <option value="Interview">Interview</option>
+                <option value="Offer">Offer</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+            <button class="btn btn-secondary" onclick="closeModal('modal-manual')">Cancel</button>
+            <button class="btn btn-primary" id="btn-save-manual">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ SCRAPE OPTIONS MODAL ═══ -->
+<div class="modal-overlay" id="modal-scrape">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-scrape')">✕</button>
+        <h2>🔄 Scrape Configuration</h2>
+        <div class="form-group">
+            <label>Sources</label>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" class="scrape-source" value="greenjobs" checked style="accent-color: var(--accent);"> Greenjobs.de
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" class="scrape-source" value="jobverde" checked style="accent-color: var(--accent);"> Jobverde.de
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" class="scrape-source" value="goodjobs" checked style="accent-color: var(--accent);"> GoodJobs.eu
+                </label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Search Terms (one per line)</label>
+            <textarea class="form-textarea" id="scrape-terms" style="min-height: 120px;">geoökologie
+umweltwissenschaften
+hydrologie
+naturschutz
+klimaschutz</textarea>
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+            <button class="btn btn-secondary" onclick="closeModal('modal-scrape')">Cancel</button>
+            <button class="btn btn-primary" id="btn-start-scrape">🚀 Start Scraping</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
