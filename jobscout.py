@@ -192,7 +192,7 @@ def scrape_jobverde(search_term, progress_callback=None):
     if progress_callback:
         progress_callback(f"🔎 Scraping Jobverde.de: '{search_term}'...")
 
-    url = f"https://www.jobverde.de/stellenanzeigen/alle/{search_term}"
+    url = f"https://www.jobverde.de/gruene-jobs?schlagwort={search_term}"
 
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
@@ -204,32 +204,60 @@ def scrape_jobverde(search_term, progress_callback=None):
 
     soup = BeautifulSoup(response.content, 'html.parser')
     jobs = []
-
-    # Look for job listing cards/links
-    job_links = soup.find_all("a", href=True)
     seen_links = set()
 
-    for link in job_links:
+
+    job_link_pattern = re.compile(
+        r'/gruene-jobs/[^?]+/[^?]+-\d+$'
+        r'|/stellenanzeigen-special/'
+    )
+
+    # Navigation/category links to exclude
+    NAV_BLACKLIST = [
+        "/gruene-jobs?", "/gruene-jobs/?page=",
+        "jobalert", "newsletter", "login", "seminare-events",
+        "stellenanzeigen-schalten", "fuer-arbeitgeber", "fuer-bewerber",
+        "gruene-arbeitgeber", "karriere-guide", "karrieremessen",
+        "gruene-events", "gruene-studiengaenge", "nachhaltige-studiengaenge",
+        "gruene-weiterbildungen", "ueber-jobverde", "magazin",
+        "kontakt", "impressum", "datenschutz", "agb", "mediadaten",
+        "partner", "startseite", "karriereinfos",
+    ]
+
+    for link in soup.find_all("a", href=True):
         href = link.get("href", "")
-        # Jobverde job listings follow pattern /stellenanzeigen/xxxxx/title
-        if "/stellenanzeigen/" not in href:
+
+        # Build full URL for matching
+        full_link = href if href.startswith("http") else f"https://www.jobverde.de/{href.lstrip('/')}"
+
+        # Skip navigation/non-job links
+        if any(bl in href.lower() for bl in NAV_BLACKLIST):
             continue
-        if "/alle/" in href or "/gruene-" in href:
+
+        if not job_link_pattern.search(href):
             continue
 
         title = link.get_text(strip=True)
         if len(title) < 5:
             continue
 
-        full_link = href if href.startswith("http") else f"https://www.jobverde.de{href}"
-
         if full_link in seen_links:
             continue
         seen_links.add(full_link)
 
-        # Try to get context from parent
+        company = "See listing"
+        if "|" in title:
+            parts = title.rsplit("|", 1)
+            title = parts[0].strip()
+            company = parts[1].strip() if len(parts) > 1 and len(parts[1].strip()) > 2 else "See listing"
+
         parent = link.parent
-        full_text = parent.get_text(" | ", strip=True) if parent else title
+        if parent:
+            container = parent.parent if parent.parent else parent
+            full_text = container.get_text(" | ", strip=True)
+        else:
+            full_text = title
+
         location = extract_location_smart(full_text)
 
         if (location == "Deutschland") and is_remote_job(full_text):
@@ -240,7 +268,7 @@ def scrape_jobverde(search_term, progress_callback=None):
 
         jobs.append({
             "Title": title,
-            "Company": "See listing",
+            "Company": company,
             "Location": location,
             "Remote": remote,
             "Link": full_link,
@@ -256,7 +284,7 @@ def scrape_goodjobs(search_term, progress_callback=None):
     if progress_callback:
         progress_callback(f"🔎 Scraping GoodJobs.eu: '{search_term}'...")
 
-    url = f"https://goodjobs.eu/de/jobs?search_term={search_term}&location=Deutschland"
+    url = f"https://goodjobs.eu/jobs?search_term={search_term}"
 
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
@@ -273,10 +301,20 @@ def scrape_goodjobs(search_term, progress_callback=None):
     jobs = []
     seen_links = set()
 
-    # GoodJobs uses various card-like structures
+    GOODJOBS_NAV_BLACKLIST = [
+        "stellenanzeigen", "login", "register", "newsletter",
+        "nachhaltige-unternehmen", "magazin", "podcast",
+        "imprint", "agb", "privacy", "terms-of-use",
+        "criteria", "netiquette", "nutzer-nutzerinnen",
+        "mailto:", "tel:", "instagram", "linkedin", "tiktok",
+    ]
+
     for link in soup.find_all("a", href=True):
         href = link.get("href", "")
-        if "/de/jobs/" not in href and "/job/" not in href:
+
+        if not re.search(r'/jobs/[a-z0-9]', href, re.IGNORECASE):
+            continue
+        if any(bl in href.lower() for bl in GOODJOBS_NAV_BLACKLIST):
             continue
 
         title = link.get_text(strip=True)
@@ -290,15 +328,22 @@ def scrape_goodjobs(search_term, progress_callback=None):
         seen_links.add(full_link)
 
         parent = link.parent
-        full_text = parent.get_text(" | ", strip=True) if parent else title
+        if parent:
+            container = parent.parent if parent.parent else parent
+            full_text = container.get_text(" | ", strip=True)
+        else:
+            full_text = title
+
         location = extract_location_smart(full_text)
 
         if (location == "Deutschland") and is_remote_job(full_text):
             location = "Berlin"
 
+        company = "See listing"
+
         jobs.append({
             "Title": title,
-            "Company": "See listing",
+            "Company": company,
             "Location": location,
             "Remote": is_remote_job(full_text),
             "Link": full_link,

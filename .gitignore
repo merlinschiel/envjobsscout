@@ -1,0 +1,14 @@
+
+*.csv
+geocode_cache.json
+
+*.html
+
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+.env
+
+test_scrapers.py
