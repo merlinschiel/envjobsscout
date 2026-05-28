@@ -17,18 +17,26 @@ The application pulls current job listings from the following platforms:
    cd envjobsscout
    ```
 
-2. **Install the required dependencies:**
-   Ensure you have Python installed, then run:
+2. **Install dependencies:**
+   Using [uv](https://github.com/astral-sh/uv) is recommended to manage the project dependencies and virtual environment:
    ```bash
-   pip install -r requirements.txt
+   # Install uv (if not already installed)
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+
+   # Sync dependencies and set up the virtual environment
+   uv sync
    ```
+
+   *(Alternative: If you prefer standard pip, run `pip install -r requirements.txt`)*
 
 ## Run the App
 
 Start the application:
 ```bash
-python app.py
+uv run app.py
 ```
+
+*(Alternative: `python app.py` if using a traditional virtual environment)*
 
 Open your web browser and navigate to `http://localhost:5000` (or the port shown in your terminal). 
 
