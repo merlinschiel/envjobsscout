@@ -1,6 +1,7 @@
 
 *.csv
 geocode_cache.json
+*rules*
 
 *.html
 
