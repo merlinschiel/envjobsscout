@@ -1,6 +1,7 @@
 """
-GeoEco JobScout — Flask Web Application
-Serves the single-page job scout app with REST API.
+GeoEco JobScout — Flask web application.
+Serves the single-page job scout UI and exposes a REST API for jobs,
+portfolio management, and scrape orchestration.
 """
 
 from flask import Flask, render_template, jsonify, request
@@ -17,7 +18,6 @@ from jobscout import (
 
 app = Flask(__name__)
 
-# Scraping state
 scrape_state = {
     "running": False,
     "messages": [],
@@ -26,15 +26,11 @@ scrape_state = {
 }
 
 
-# ──────────────────────── ROUTES ────────────────────────
-
 @app.route("/")
 def index():
     """Serve the main single-page app."""
     return render_template("index.html")
 
-
-# ──────────────────────── API: JOBS ────────────────────────
 
 @app.route("/api/jobs")
 def get_jobs():
@@ -43,7 +39,6 @@ def get_jobs():
     if df.empty:
         return jsonify({"jobs": [], "count": 0})
 
-    # Clean NaN values
     df = df.fillna("")
     jobs = df.to_dict(orient="records")
     return jsonify({"jobs": jobs, "count": len(jobs)})
@@ -51,7 +46,7 @@ def get_jobs():
 
 @app.route("/api/stats")
 def get_stats():
-    """Return summary statistics."""
+    """Return summary statistics grouped by source, skill, location, and term."""
     df = load_existing_jobs()
     if df.empty:
         return jsonify({"total": 0, "by_source": {}, "by_skill": {}, "by_location": {}, "by_term": {}})
@@ -64,7 +59,6 @@ def get_stats():
         "by_term": {},
     }
 
-    # Count skills (they can be comma-separated)
     if 'Skills' in df.columns:
         skill_counts = {}
         for skills_str in df['Skills'].dropna():
@@ -74,7 +68,6 @@ def get_stats():
                     skill_counts[skill] = skill_counts.get(skill, 0) + 1
         stats["by_skill"] = skill_counts
 
-    # Count terms (they can be comma-separated)
     if 'Term' in df.columns:
         term_counts = {}
         for terms_str in df['Term'].dropna():
@@ -87,11 +80,9 @@ def get_stats():
     return jsonify(stats)
 
 
-# ──────────────────────── API: SCRAPE ────────────────────────
-
 @app.route("/api/scrape", methods=["POST"])
 def start_scrape():
-    """Trigger a new scrape."""
+    """Trigger a new scrape in a background thread."""
     if scrape_state["running"]:
         return jsonify({"error": "Scrape already in progress"}), 409
 
@@ -121,7 +112,7 @@ def start_scrape():
                 progress_callback=progress
             )
         except Exception as e:
-            scrape_state["messages"].append(f"❌ Error: {str(e)}")
+            scrape_state["messages"].append(f"Error: {str(e)}")
         finally:
             scrape_state["running"] = False
 
@@ -133,20 +124,18 @@ def start_scrape():
 
 @app.route("/api/scrape/status")
 def scrape_status():
-    """Get the current scrape status."""
+    """Return current scrape progress (last 20 log messages)."""
     return jsonify({
         "running": scrape_state["running"],
-        "messages": scrape_state["messages"][-20:],  # Last 20 messages
+        "messages": scrape_state["messages"][-20:],
         "progress": scrape_state["progress"],
         "total": scrape_state["total"],
     })
 
 
-# ──────────────────────── API: CURATED PORTFOLIO ────────────────────────
-
 @app.route("/api/curated")
 def get_curated():
-    """Return curated portfolio."""
+    """Return the curated portfolio."""
     ensure_curated_db()
     try:
         df = pd.read_csv(CURATED_CSV)
@@ -180,7 +169,7 @@ def add_curated():
 
 @app.route("/api/curated/<int:idx>", methods=["PUT"])
 def update_curated(idx):
-    """Update a curated portfolio entry."""
+    """Update a curated portfolio entry by index."""
     ensure_curated_db()
     try:
         df = pd.read_csv(CURATED_CSV)
@@ -201,7 +190,7 @@ def update_curated(idx):
 
 @app.route("/api/curated/<int:idx>", methods=["DELETE"])
 def delete_curated(idx):
-    """Remove a curated portfolio entry."""
+    """Remove a curated portfolio entry by index."""
     ensure_curated_db()
     try:
         df = pd.read_csv(CURATED_CSV)
@@ -215,10 +204,7 @@ def delete_curated(idx):
         return jsonify({"error": str(e)}), 500
 
 
-# ──────────────────────── STARTUP ────────────────────────
-
 if __name__ == "__main__":
-    # Seed geocode cache from existing data
     seed_geocode_cache_from_csv()
     ensure_curated_db()
 

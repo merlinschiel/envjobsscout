@@ -24,28 +24,28 @@
     <!-- ═══ HEADER ═══ -->
     <header class="header">
         <div class="header-brand">
-            <span class="logo">🌍 GeoEco JobScout</span>
+            <span class="logo">GeoEco JobScout</span>
             <span class="subtitle">Multi-Source Job Scanner</span>
         </div>
 
         <nav class="header-nav">
             <button class="nav-btn active" data-view="map" id="nav-map">
-                🗺️ Map
+                Map
             </button>
             <button class="nav-btn" data-view="table" id="nav-table">
-                📋 Table
+                Table
             </button>
             <button class="nav-btn" data-view="portfolio" id="nav-portfolio">
-                ⭐ Portfolio
+                Portfolio
             </button>
         </nav>
 
         <div class="header-actions">
             <span class="stats-badge" id="stats-badge">0 jobs</span>
             <button class="btn btn-primary" id="btn-scrape" title="Start new scrape">
-                🔄 Scrape Jobs
+                Scrape Jobs
             </button>
-            <button class="btn-icon" id="btn-toggle-sidebar" title="Toggle sidebar">☰</button>
+            <button class="btn-icon" id="btn-toggle-sidebar" title="Toggle sidebar">&equiv;</button>
         </div>
     </header>
 
@@ -139,7 +139,7 @@
             <div class="view-container" id="view-portfolio">
                 <div class="portfolio-view">
                     <div class="portfolio-header">
-                        <h2>⭐ Your Portfolio</h2>
+                        <h2>Your Portfolio</h2>
                         <button class="btn btn-primary" id="btn-add-manual">+ Add Entry</button>
                     </div>
                     <div class="portfolio-grid" id="portfolio-grid"></div>
@@ -152,7 +152,7 @@
 <!-- ═══ ADD MANUAL MODAL ═══ -->
 <div class="modal-overlay" id="modal-manual">
     <div class="modal">
-        <button class="modal-close" onclick="closeModal('modal-manual')">✕</button>
+        <button class="modal-close" onclick="closeModal('modal-manual')">&times;</button>
         <h2>Add to Portfolio</h2>
         <div class="form-group">
             <label>Company</label>
@@ -194,8 +194,8 @@
 <!-- ═══ SCRAPE OPTIONS MODAL ═══ -->
 <div class="modal-overlay" id="modal-scrape">
     <div class="modal">
-        <button class="modal-close" onclick="closeModal('modal-scrape')">✕</button>
-        <h2>🔄 Scrape Configuration</h2>
+        <button class="modal-close" onclick="closeModal('modal-scrape')">&times;</button>
+        <h2>Scrape Configuration</h2>
         <div class="form-group">
             <label>Sources</label>
             <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
@@ -220,7 +220,7 @@ klimaschutz</textarea>
         </div>
         <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
             <button class="btn btn-secondary" onclick="closeModal('modal-scrape')">Cancel</button>
-            <button class="btn btn-primary" id="btn-start-scrape">🚀 Start Scraping</button>
+            <button class="btn btn-primary" id="btn-start-scrape">Start Scraping</button>
         </div>
     </div>
 </div>

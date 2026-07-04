@@ -1,12 +1,13 @@
 /**
- * GeoEco JobScout — Client-side Application Logic
- * Handles map rendering, table display, filtering, portfolio management,
- * and scraping orchestration.
+ * GeoEco JobScout — Client-side application logic.
+ *
+ * Manages the Leaflet map, job table, sidebar filters, portfolio CRUD,
+ * and scrape orchestration via the Flask REST API.
  */
 
-// ══════════════════════════════════════════════════════════
-//  STATE
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  State
+// ---------------------------------------------------------------------------
 
 const state = {
   jobs: [],
@@ -25,28 +26,28 @@ const state = {
   sort: { field: 'Title', dir: 'asc' },
   map: null,
   markerCluster: null,
-  markers: {},  // link -> marker
+  markers: {},  // link -> marker lookup
 };
 
-// Color map for search terms
+// Per-term marker colors used on the map
 const TERM_COLORS = {
-  'geoökologie': '#f59e0b',
-  'umweltwissenschaften': '#8b5cf6',
-  'hydrologie': '#3b82f6',
-  'naturschutz': '#10b981',
-  'klimaschutz': '#ef4444',
+  'geoökologie': '#d97706',
+  'umweltwissenschaften': '#7c3aed',
+  'hydrologie': '#2563eb',
+  'naturschutz': '#0d9373',
+  'klimaschutz': '#dc2626',
 };
 
 const SOURCE_COLORS = {
-  'Greenjobs': '#10b981',
-  'Jobverde': '#8b5cf6',
-  'GoodJobs': '#f59e0b',
-  'Manual': '#6b7280',
+  'Greenjobs': '#0d9373',
+  'Jobverde': '#7c3aed',
+  'GoodJobs': '#d97706',
+  'Manual': '#8e95a5',
 };
 
-// ══════════════════════════════════════════════════════════
-//  INITIALIZATION
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Initialization
+// ---------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
@@ -57,40 +58,33 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindEvents() {
-  // Navigation
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
   });
 
-  // Sidebar toggle
   document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('collapsed');
+    // Map must recalculate size after sidebar animation finishes
     if (state.map) setTimeout(() => state.map.invalidateSize(), 300);
   });
 
-  // Search
   document.getElementById('search-input').addEventListener('input', e => {
     state.filters.search = e.target.value.toLowerCase();
     applyFilters();
   });
 
-  // Scrape button
   document.getElementById('btn-scrape').addEventListener('click', () => {
     openModal('modal-scrape');
   });
 
-  // Start scrape
   document.getElementById('btn-start-scrape').addEventListener('click', startScrape);
 
-  // Manual add
   document.getElementById('btn-add-manual').addEventListener('click', () => {
     openModal('modal-manual');
   });
 
-  // Save manual
   document.getElementById('btn-save-manual').addEventListener('click', saveManualEntry);
 
-  // Table sort
   document.querySelectorAll('.jobs-table th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
       const field = th.dataset.sort;
@@ -100,7 +94,6 @@ function bindEvents() {
         state.sort.field = field;
         state.sort.dir = 'asc';
       }
-      // Update header styles
       document.querySelectorAll('.jobs-table th').forEach(h => h.classList.remove('sorted'));
       th.classList.add('sorted');
       th.querySelector('.sort-arrow').textContent = state.sort.dir === 'asc' ? '↑' : '↓';
@@ -108,16 +101,15 @@ function bindEvents() {
     });
   });
 
-  // Hide remote checkbox
   document.getElementById('hide-remote').addEventListener('change', e => {
     state.filters.hideRemote = e.target.checked;
     applyFilters();
   });
 }
 
-// ══════════════════════════════════════════════════════════
-//  VIEW SWITCHING
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  View Switching
+// ---------------------------------------------------------------------------
 
 function switchView(view) {
   state.activeView = view;
@@ -136,17 +128,17 @@ function switchView(view) {
   }
 }
 
-// ══════════════════════════════════════════════════════════
-//  MAP
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Map
+// ---------------------------------------------------------------------------
 
 function initMap() {
   state.map = L.map('map', {
     zoomControl: true,
     preferCanvas: true,
-  }).setView([52.52, 13.40], 7); // Berlin-centered, zoomed to show region
+  }).setView([52.52, 13.40], 7);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 19,
@@ -179,14 +171,13 @@ function renderMap() {
     const lon = parseFloat(job.Lon);
     if (isNaN(lat) || isNaN(lon)) return;
 
-    // Determine marker color from first search term
     const firstTerm = (job.Term || '').split(',')[0].trim();
-    const color = TERM_COLORS[firstTerm] || '#10b981';
+    const color = TERM_COLORS[firstTerm] || '#0d9373';
 
     const marker = L.circleMarker([lat, lon], {
       radius: 7,
       fillColor: color,
-      color: 'rgba(255,255,255,0.3)',
+      color: 'rgba(0,0,0,0.15)',
       weight: 1,
       opacity: 1,
       fillOpacity: 0.85,
@@ -197,14 +188,14 @@ function renderMap() {
 
     const popupHtml = `
       <div class="popup-title">${escapeHtml(job.Title)}</div>
-      <div class="popup-detail">🏢 ${escapeHtml(job.Company || 'Not specified')}</div>
-      <div class="popup-detail">📍 ${escapeHtml(job.Location)}${remoteTag}</div>
-      <div class="popup-detail">🛠 ${escapeHtml(job.Skills || 'General')}</div>
-      <div class="popup-detail">🔍 ${escapeHtml(job.Term || '')}</div>
+      <div class="popup-detail">${escapeHtml(job.Company || 'Not specified')}</div>
+      <div class="popup-detail">${escapeHtml(job.Location)}${remoteTag}</div>
+      <div class="popup-detail">${escapeHtml(job.Skills || 'General')}</div>
+      <div class="popup-detail">${escapeHtml(job.Term || '')}</div>
       <div class="popup-detail"><span class="badge badge-source ${(job.Source || '').toLowerCase()}">${escapeHtml(job.Source || '')}</span></div>
       <div class="popup-actions">
         <a href="${escapeHtml(job.Link)}" target="_blank" class="popup-btn secondary">Open Job ↗</a>
-        <button class="popup-btn primary" onclick="saveToPortfolio('${escapeJS(job.Title)}', '${escapeJS(job.Company)}', '${escapeJS(job.Location)}', '${escapeJS(job.Link)}', '${escapeJS(job.Source)}', '${escapeJS(job.Skills)}')">⭐ Save</button>
+        <button class="popup-btn primary" onclick="saveToPortfolio('${escapeJS(job.Title)}', '${escapeJS(job.Company)}', '${escapeJS(job.Location)}', '${escapeJS(job.Link)}', '${escapeJS(job.Source)}', '${escapeJS(job.Skills)}')">Save</button>
       </div>
     `;
 
@@ -214,15 +205,14 @@ function renderMap() {
   });
 }
 
-// ══════════════════════════════════════════════════════════
-//  TABLE
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Table
+// ---------------------------------------------------------------------------
 
 function renderTable() {
   const tbody = document.getElementById('jobs-tbody');
   let sorted = [...state.filteredJobs];
 
-  // Sort
   const { field, dir } = state.sort;
   sorted.sort((a, b) => {
     const va = String(a[field] || '').toLowerCase();
@@ -236,7 +226,7 @@ function renderTable() {
     tbody.innerHTML = `
       <tr><td colspan="6">
         <div class="empty-state">
-          <div class="empty-icon">📭</div>
+          <div class="empty-icon">&mdash;</div>
           <h3>No jobs found</h3>
           <p>Try adjusting your filters or run a new scrape.</p>
         </div>
@@ -265,7 +255,7 @@ function renderTable() {
         <td>${skillBadges}</td>
         <td onclick="event.stopPropagation();">
           <a href="${escapeHtml(job.Link)}" target="_blank" class="job-link" style="margin-right:6px;">Open ↗</a>
-          <button class="save-btn" onclick="saveToPortfolio('${escapeJS(job.Title)}', '${escapeJS(job.Company)}', '${escapeJS(job.Location)}', '${escapeJS(job.Link)}', '${escapeJS(job.Source)}', '${escapeJS(job.Skills)}')">⭐ Save</button>
+          <button class="save-btn" onclick="saveToPortfolio('${escapeJS(job.Title)}', '${escapeJS(job.Company)}', '${escapeJS(job.Location)}', '${escapeJS(job.Link)}', '${escapeJS(job.Source)}', '${escapeJS(job.Skills)}')">Save</button>
         </td>
       </tr>
     `;
@@ -288,31 +278,27 @@ function flyToJob(link) {
   }
 }
 
-// ══════════════════════════════════════════════════════════
-//  FILTERS
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Filters
+// ---------------------------------------------------------------------------
 
 function buildFilters() {
   const sources = {}, skills = {}, terms = {}, locations = {};
 
   state.jobs.forEach(job => {
-    // Sources
     const src = job.Source || 'Unknown';
     sources[src] = (sources[src] || 0) + 1;
 
-    // Skills
     (job.Skills || 'General').split(',').forEach(s => {
       s = s.trim();
       if (s) skills[s] = (skills[s] || 0) + 1;
     });
 
-    // Terms
     (job.Term || '').split(',').forEach(t => {
       t = t.trim();
       if (t) terms[t] = (terms[t] || 0) + 1;
     });
 
-    // Locations
     const loc = job.Location || '';
     if (loc && loc !== 'Deutschland') {
       locations[loc] = (locations[loc] || 0) + 1;
@@ -323,7 +309,7 @@ function buildFilters() {
   renderFilterGroup('skill-filters', skills, 'skills');
   renderFilterGroup('term-filters', terms, 'terms');
 
-  // Top 15 locations
+  // Show only the 15 most common locations
   const topLocs = Object.entries(locations)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 15)
@@ -362,36 +348,30 @@ function renderFilterGroup(containerId, data, filterKey) {
 
 function applyFilters() {
   state.filteredJobs = state.jobs.filter(job => {
-    // Text search
     if (state.filters.search) {
       const haystack = [job.Title, job.Company, job.Location, job.Skills, job.Term, job.Source]
         .join(' ').toLowerCase();
       if (!haystack.includes(state.filters.search)) return false;
     }
 
-    // Source filter
     if (state.filters.sources.length > 0) {
       if (!state.filters.sources.includes(job.Source)) return false;
     }
 
-    // Skill filter
     if (state.filters.skills.length > 0) {
       const jobSkills = (job.Skills || '').split(',').map(s => s.trim());
       if (!state.filters.skills.some(s => jobSkills.includes(s))) return false;
     }
 
-    // Term filter
     if (state.filters.terms.length > 0) {
       const jobTerms = (job.Term || '').split(',').map(t => t.trim());
       if (!state.filters.terms.some(t => jobTerms.includes(t))) return false;
     }
 
-    // Location filter
     if (state.filters.locations.length > 0) {
       if (!state.filters.locations.includes(job.Location)) return false;
     }
 
-    // Hide remote
     if (state.filters.hideRemote) {
       const isRemote = job.Remote === true || job.Remote === 'True' || String(job.Location).includes('Remote');
       if (isRemote) return false;
@@ -404,9 +384,9 @@ function applyFilters() {
   renderTable();
 }
 
-// ══════════════════════════════════════════════════════════
-//  DATA LOADING
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Data Loading
+// ---------------------------------------------------------------------------
 
 async function loadJobs() {
   try {
@@ -443,9 +423,9 @@ async function loadCurated() {
   }
 }
 
-// ══════════════════════════════════════════════════════════
-//  PORTFOLIO
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Portfolio
+// ---------------------------------------------------------------------------
 
 function renderPortfolio() {
   const grid = document.getElementById('portfolio-grid');
@@ -453,7 +433,7 @@ function renderPortfolio() {
   if (state.curated.length === 0) {
     grid.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1;">
-        <div class="empty-icon">⭐</div>
+        <div class="empty-icon">&mdash;</div>
         <h3>Your portfolio is empty</h3>
         <p>Save interesting jobs from the Map or Table view, or add entries manually.</p>
       </div>
@@ -465,11 +445,11 @@ function renderPortfolio() {
     const statusClass = (job.Status || 'watchlist').toLowerCase().replace(/\s/g, '-');
     return `
       <div class="portfolio-card slide-up" style="animation-delay: ${idx * 0.03}s">
-        <button class="card-delete-btn" onclick="deleteCurated(${idx})" title="Remove">✕</button>
+        <button class="card-delete-btn" onclick="deleteCurated(${idx})" title="Remove">&times;</button>
         <div class="card-title">${escapeHtml(job.Job_Type_or_Title || job.title || 'Untitled')}</div>
         <div class="card-company">${escapeHtml(job.Company || job.company || '')}</div>
-        <div class="card-detail">📍 ${escapeHtml(job.Location || job.location || 'N/A')}</div>
-        <div class="card-detail">🔗 <a href="${escapeHtml(job.Link || job.link || '#')}" target="_blank" class="job-link">${job.Source || job.source || 'Link'}</a></div>
+        <div class="card-detail">${escapeHtml(job.Location || job.location || 'N/A')}</div>
+        <div class="card-detail"><a href="${escapeHtml(job.Link || job.link || '#')}" target="_blank" class="job-link">${job.Source || job.source || 'Link'}</a></div>
         <div class="card-detail" style="margin-top: 6px;">
           <select class="status-select" onchange="updateCuratedStatus(${idx}, this.value)">
             ${['Watchlist', 'To Review', 'Applied', 'Interview', 'Offer', 'Rejected'].map(s =>
@@ -496,7 +476,7 @@ async function saveToPortfolio(title, company, location, link, source, skills) {
       }),
     });
     if (res.ok) {
-      showToast('⭐ Saved to portfolio!');
+      showToast('Saved to portfolio!');
       loadCurated();
     }
   } catch (e) {
@@ -523,8 +503,7 @@ async function saveManualEntry() {
     });
     if (res.ok) {
       closeModal('modal-manual');
-      showToast('✅ Entry added!');
-      // Clear form
+      showToast('Entry added!');
       ['manual-company', 'manual-title', 'manual-location', 'manual-link', 'manual-notes'].forEach(id => {
         document.getElementById(id).value = '';
       });
@@ -553,7 +532,7 @@ async function deleteCurated(idx) {
   try {
     const res = await fetch(`/api/curated/${idx}`, { method: 'DELETE' });
     if (res.ok) {
-      showToast('🗑️ Entry removed');
+      showToast('Entry removed');
       loadCurated();
     }
   } catch (e) {
@@ -561,9 +540,9 @@ async function deleteCurated(idx) {
   }
 }
 
-// ══════════════════════════════════════════════════════════
-//  SCRAPING
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Scraping
+// ---------------------------------------------------------------------------
 
 async function startScrape() {
   const sources = [...document.querySelectorAll('.scrape-source:checked')].map(c => c.value);
@@ -579,7 +558,6 @@ async function startScrape() {
 
   closeModal('modal-scrape');
 
-  // Show progress panel
   document.getElementById('scrape-progress').style.display = 'block';
   document.getElementById('scrape-log').innerHTML = '';
   document.getElementById('scrape-bar').style.width = '0%';
@@ -595,13 +573,12 @@ async function startScrape() {
 
     if (!res.ok) {
       const err = await res.json();
-      showToast('❌ ' + (err.error || 'Scrape failed'));
+      showToast('Error: ' + (err.error || 'Scrape failed'));
       document.getElementById('scrape-progress').style.display = 'none';
       document.getElementById('btn-scrape').disabled = false;
       return;
     }
 
-    // Poll for progress
     pollScrapeStatus();
   } catch (e) {
     console.error('Scrape start failed:', e);
@@ -619,12 +596,10 @@ async function pollScrapeStatus() {
       const res = await fetch('/api/scrape/status');
       const data = await res.json();
 
-      // Update progress bar
       const percent = data.total > 0 ? Math.round((data.progress / data.total) * 100) : 0;
       document.getElementById('scrape-bar').style.width = `${percent}%`;
       document.getElementById('scrape-percent').textContent = `${percent}%`;
 
-      // Update log
       if (data.messages.length > lastMsgCount) {
         const newMsgs = data.messages.slice(lastMsgCount);
         newMsgs.forEach(msg => {
@@ -640,18 +615,15 @@ async function pollScrapeStatus() {
       if (data.running) {
         setTimeout(poll, 1000);
       } else {
-        // Scrape complete
         document.getElementById('scrape-bar').style.width = '100%';
         document.getElementById('scrape-percent').textContent = '100%';
         document.getElementById('btn-scrape').disabled = false;
 
-        // Reload data
         await loadJobs();
         await loadStats();
 
-        showToast('✅ Scrape complete!');
+        showToast('Scrape complete!');
 
-        // Hide progress after a moment
         setTimeout(() => {
           document.getElementById('scrape-progress').style.display = 'none';
         }, 3000);
@@ -665,9 +637,9 @@ async function pollScrapeStatus() {
   poll();
 }
 
-// ══════════════════════════════════════════════════════════
-//  MODALS
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Modals
+// ---------------------------------------------------------------------------
 
 function openModal(id) {
   document.getElementById(id).classList.add('active');
@@ -677,32 +649,30 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('active');
 }
 
-// Close modals on overlay click
 document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay')) {
     e.target.classList.remove('active');
   }
 });
 
-// Close modals on Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
   }
 });
 
-// ══════════════════════════════════════════════════════════
-//  TOAST NOTIFICATIONS
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Toast Notifications
+// ---------------------------------------------------------------------------
 
 function showToast(message) {
   const toast = document.createElement('div');
   toast.style.cssText = `
     position: fixed; bottom: 20px; right: 20px; z-index: 9999;
-    padding: 12px 20px; background: var(--bg-secondary);
-    border: 1px solid var(--accent); border-radius: var(--radius);
-    color: var(--text-primary); font-size: 13px; font-weight: 500;
-    box-shadow: var(--shadow-lg); animation: slideUp 0.3s ease-out;
+    padding: 12px 20px; background: #ffffff;
+    border: 1px solid #e2e5ea; border-radius: 10px;
+    color: #1a1f2b; font-size: 13px; font-weight: 500;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.1); animation: slideUp 0.3s ease-out;
     font-family: 'Inter', sans-serif;
   `;
   toast.textContent = message;
@@ -714,9 +684,9 @@ function showToast(message) {
   }, 2500);
 }
 
-// ══════════════════════════════════════════════════════════
-//  UTILITIES
-// ══════════════════════════════════════════════════════════
+// ---------------------------------------------------------------------------
+//  Utilities
+// ---------------------------------------------------------------------------
 
 function escapeHtml(str) {
   if (!str) return '';
